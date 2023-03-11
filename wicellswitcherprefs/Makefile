@@ -1,11 +1,11 @@
 include $(THEOS)/makefiles/common.mk
 
 BUNDLE_NAME = WiCellSwitcherPrefs
-WiCellSwitcherPrefs_FILES = WCSRootListController.m
-WiCellSwitcherPrefs_INSTALL_PATH = /Library/PreferenceBundles
-WiCellSwitcherPrefs_FRAMEWORKS = UIKit
-WiCellSwitcherPrefs_PRIVATE_FRAMEWORKS = Preferences
-WiCellSwitcher_EXTRA_FRAMEWORKS = Cephei CepheiPrefs
+WiCellSwitcherPrefs_FILES += WCSRootListController.m
+WiCellSwitcherPrefs_INSTALL_PATH += /Library/PreferenceBundles
+WiCellSwitcherPrefs_FRAMEWORKS += UIKit
+WiCellSwitcherPrefs_PRIVATE_FRAMEWORKS += Preferences
+WiCellSwitcherPrefs_EXTRA_FRAMEWORKS += Cephei CepheiPrefs
 
 include $(THEOS_MAKE_PATH)/bundle.mk
 

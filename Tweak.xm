@@ -8,7 +8,6 @@
 - (id)currentNetworkName;
 - (BOOL)isAssociated;
 - (void)setWiFiEnabled:(BOOL)arg1;
-
 - (void)mobileDataStatusHasChanged;
 - (BOOL)isMobileDataEnabled;
 - (void)setMobileDataEnabled:(BOOL)enabled;
@@ -21,8 +20,8 @@
 - (long)closeWiFi;
 - (long)disassociateSync;
 - (id)getLinkStatus;
-- (id)getNetworkPasswordForNetworkNamed:(id)arg1; //get the password for the network
-- (int)joinNetworkWithNameAsync:(id)arg1 password:(id)arg2 rememberChoice:(int)arg3; //join said network
+- (id)getNetworkPasswordForNetworkNamed:(id)arg1;
+- (int)joinNetworkWithNameAsync:(id)arg1 password:(id)arg2 rememberChoice:(int)arg3;
 - (BOOL)isJoinInProgress;
 - (BOOL)isScanInProgress;
 - (BOOL)isScanningActive;
@@ -44,73 +43,85 @@ BOOL wiFiActive;
 BOOL cellularActivePreviousState;
 BOOL wiFiActivePreviousState;
 BOOL justChangedStatus;
-BOOL disconnectOption = true;
+BOOL disconnectOption = YES;
 id   wiFiButtonID;
 
 extern "C" Boolean CTCellularDataPlanGetIsEnabled();
 extern "C" void CTCellularDataPlanSetIsEnabled(Boolean enabled);
+// extern "C" CFNotificationCenterRef CTTelephonyCenterGetDefault();
+// extern "C" void CTTelephonyCenterAddObserver(CFNotificationCenterRef center, const void *observer, CFNotificationCallback callBack, CFStringRef name, const void *object, CFNotificationSuspensionBehavior suspensionBehavior);
+// extern "C" void CTTelephonyCenterRemoveObserver(CFNotificationCenterRef center, const void *observer, CFStringRef name, const void *object);
+// extern "C" CFStringRef const kCTRegistrationDataStatusChangedNotification;
+
+// static void FSDataSwitchStatusDidChange(void)
+// {
+//   [[%c(SBWiFiManager) sharedInstance] mobileDataStatusHasChanged];
+// }
 
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application
 {
-  %orig();
-  if (disconnectOption == NO) wiFiActive = [[%c(SBWiFiManager) sharedInstance] isPowered];
-  else {
-    if ([[%c(SBWiFiManager) sharedInstance] currentNetworkName] != nil) wiFiActive = YES;
-    else wiFiActive = NO;
-  }
+  %orig;
+  if (!disconnectOption)
+    wiFiActive = [[%c(SBWiFiManager) sharedInstance] isPowered];
+  else
+    wiFiActive = [[%c(SBWiFiManager) sharedInstance] currentNetworkName] != nil;
   cellularActive = [[%c(SBWiFiManager) sharedInstance] isMobileDataEnabled];
-  if(wiFiActive == YES && cellularActive == YES){
+  if (wiFiActive && cellularActive) {
     justChangedStatus = YES;
     [[%c(SBWiFiManager) sharedInstance] setMobileDataEnabled:NO];
     cellularActivePreviousState = !cellularActive;
     wiFiActivePreviousState = wiFiActive;
   }
+  // CTTelephonyCenterAddObserver(
+  //   CTTelephonyCenterGetDefault(),
+  //   NULL,
+  //   (CFNotificationCallback)FSDataSwitchStatusDidChange,
+  //   kCTRegistrationDataStatusChangedNotification,
+  //   NULL,
+  //   CFNotificationSuspensionBehaviorCoalesce
+  // );
 }
 %end
 
 %hook SBStatusBarStateAggregator
-- (void)_updateDataNetworkItem{
-  %orig();
+- (void)_updateDataNetworkItem
+{
+  %orig;
   [[%c(SBWiFiManager) sharedInstance] mobileDataStatusHasChanged];
 }
 %end
 
 %hook SBWiFiManager
-- (void)_powerStateDidChange{
-  %orig();
-  if (justChangedStatus == NO && disconnectOption == NO){
+- (void)_powerStateDidChange
+{
+  %orig;
+  if (!justChangedStatus && !disconnectOption)
+  {
     cellularActive = [self isMobileDataEnabled];
-    if ([self currentNetworkName] != nil) wiFiActive = YES;
-    else wiFiActive = NO;
-    if(wiFiActive != wiFiActivePreviousState){
+    wiFiActive = ([self currentNetworkName] != nil);
+    if (wiFiActive != wiFiActivePreviousState)
+    {
       justChangedStatus = YES;
-      if (wiFiActive == YES){
-        [self setMobileDataEnabled:NO];
-      }
-      else{
-        [self setMobileDataEnabled:YES];
-      }
+      [self setMobileDataEnabled:!wiFiActive];
       cellularActivePreviousState = [self isMobileDataEnabled];
       wiFiActivePreviousState = wiFiActive;
     }
   }
   else justChangedStatus = NO;
 }
+
 - (void)_linkDidChange
 {
-  %orig();
-  if (justChangedStatus == NO && disconnectOption == YES){
+  %orig;
+  if (!justChangedStatus && disconnectOption)
+  {
     cellularActive = [self isMobileDataEnabled];
     wiFiActive = [self isAssociated];
-    if(wiFiActive != wiFiActivePreviousState){
+    if (wiFiActive != wiFiActivePreviousState)
+    {
       justChangedStatus = YES;
-      if (wiFiActive == YES){
-        [self setMobileDataEnabled:NO];
-      }
-      else{
-        [self setMobileDataEnabled:YES];
-      }
+      [self setMobileDataEnabled:!wiFiActive];
       cellularActivePreviousState = [self isMobileDataEnabled];
       wiFiActivePreviousState = wiFiActive;
     }
@@ -119,18 +130,20 @@ extern "C" void CTCellularDataPlanSetIsEnabled(Boolean enabled);
 }
 
 %new
-- (void)mobileDataStatusHasChanged{
-  if (justChangedStatus == NO && disconnectOption == NO){
+- (void)mobileDataStatusHasChanged
+{
+  if (!justChangedStatus && disconnectOption)
+  {
     cellularActive = [self isMobileDataEnabled];
     wiFiActive = [self isPowered];
-    if(cellularActive != cellularActivePreviousState){
+    if (cellularActive != cellularActivePreviousState)
+    {
       justChangedStatus = YES;
-      if (cellularActive == YES){
+      if (cellularActive) {
         [self setWiFiEnabled:NO];
-      }
-      else{
+      } else {
         [self setWiFiEnabled:YES];
-        [[%c(WiFiUtils) sharedInstance] setAutoJoinState: YES];
+        [[%c(WiFiUtils) sharedInstance] setAutoJoinState:YES];
       }
       cellularActivePreviousState = cellularActive;
       wiFiActivePreviousState = [self isPowered];
@@ -140,18 +153,21 @@ extern "C" void CTCellularDataPlanSetIsEnabled(Boolean enabled);
 }
 
 %new
-- (BOOL)isMobileDataEnabled{
+- (BOOL)isMobileDataEnabled
+{
   return CTCellularDataPlanGetIsEnabled();
 }
 
 %new
-- (void)setMobileDataEnabled:(BOOL)enabled{
+- (void)setMobileDataEnabled:(BOOL)enabled
+{
   CTCellularDataPlanSetIsEnabled(enabled);
 }
 
 %end
 
-%ctor {
-    preferences = [[HBPreferences alloc] initWithIdentifier:@"com.brunonfl.wicellswitcher"];
-    [preferences registerBool:&disconnectOption default:YES forKey:@"disconnectOptionSwitch"];
+%ctor
+{
+  preferences = [[HBPreferences alloc] initWithIdentifier:@"com.brunonfl.wicellswitcher"];
+  [preferences registerBool:&disconnectOption default:YES forKey:@"disconnectOptionSwitch"];
 }
